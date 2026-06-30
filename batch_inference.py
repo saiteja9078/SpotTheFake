@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 import csv
+import time
 from glob import glob
 from predict import predict
 
@@ -29,13 +30,15 @@ def run_batch_inference(input_folder: str, log_file: str, output_folder: str = N
     
     with open(log_file, mode='w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(["Filename", "Fraud_Score", "Predicted_Class"])
+        writer.writerow(["Filename", "Fraud_Score", "Predicted_Class", "Time_ms"])
         
         for i, img_path in enumerate(image_paths, 1):
             filename = os.path.basename(img_path)
             try:
-                # Get prediction (0 to 1, where 1 is Screen)
+                # Measure time and get prediction (0 to 1, where 1 is Screen)
+                start_time = time.time()
                 score = predict(img_path)
+                elapsed_ms = (time.time() - start_time) * 1000
                 
                 if score >= 0.5:
                     pred_class = "Screen"
@@ -49,12 +52,12 @@ def run_batch_inference(input_folder: str, log_file: str, output_folder: str = N
                     shutil.copy2(img_path, dest_path)
                 
                 # Log to CSV
-                writer.writerow([filename, f"{score:.4f}", pred_class])
-                print(f"[{i}/{len(image_paths)}] {filename} -> {pred_class} (Score: {score:.4f})")
+                writer.writerow([filename, f"{score:.4f}", pred_class, f"{elapsed_ms:.1f}"])
+                print(f"[{i}/{len(image_paths)}] {filename} -> {pred_class} (Score: {score:.4f}) [{elapsed_ms:.1f}ms]")
                 
             except Exception as e:
                 print(f"Failed to process {filename}: {e}")
-                writer.writerow([filename, "ERROR", str(e)])
+                writer.writerow([filename, "ERROR", str(e), ""])
 
 if __name__ == "__main__":
     if len(sys.argv) < 3 or len(sys.argv) > 4:

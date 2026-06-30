@@ -78,13 +78,33 @@ def main():
     real_paths = glob("Dataset/Real/*.*")
     screen_paths = glob("Dataset/Screen/*.*")
     
-    all_paths = np.array(real_paths + screen_paths)
-    all_labels = np.array([0]*len(real_paths) + [1]*len(screen_paths))
+    # Filter hidden files
+    real_paths = sorted([p for p in real_paths if not os.path.basename(p).startswith('.')])
+    screen_paths = sorted([p for p in screen_paths if not os.path.basename(p).startswith('.')])
     
+    np.random.seed(42)
+    real_indices = np.random.permutation(len(real_paths))
+    screen_indices = np.random.permutation(len(screen_paths))
+    
+    train_real = [real_paths[i] for i in real_indices[:50]]
+    test_real = [real_paths[i] for i in real_indices[50:]]
+    
+    train_screen = [screen_paths[i] for i in screen_indices[:50]]
+    test_screen = [screen_paths[i] for i in screen_indices[50:]]
+    
+    train_paths = np.array(train_real + train_screen)
+    train_labels = np.array([0]*len(train_real) + [1]*len(train_screen))
+    
+    test_paths = np.array(test_real + test_screen)
+    test_labels = np.array([0]*len(test_real) + [1]*len(test_screen))
+    
+    print(f"Train split: {len(train_real)} Real + {len(train_screen)} Screen = {len(train_paths)}")
+    print(f"Test split:  {len(test_real)} Real + {len(test_screen)} Screen = {len(test_paths)}")
+    
+    # No data augmentation
     train_transform = transforms.Compose([
-        transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -96,38 +116,28 @@ def main():
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     
-    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    train_ds = ScreenDataset(train_paths, train_labels, transform=train_transform)
+    val_ds = ScreenDataset(test_paths, test_labels, transform=val_transform)
     
-    fold_accs = []
+    dataloaders = {
+        'train': DataLoader(train_ds, batch_size=16, shuffle=True, num_workers=0),
+        'val': DataLoader(val_ds, batch_size=16, shuffle=False, num_workers=0)
+    }
     
-    # Just run 1 fold to see how good it is to save time, or 5 if it's fast
-    for fold, (train_idx, val_idx) in enumerate(skf.split(all_paths, all_labels)):
-        print(f"Fold {fold+1}")
-        
-        train_ds = ScreenDataset(all_paths[train_idx], all_labels[train_idx], transform=train_transform)
-        val_ds = ScreenDataset(all_paths[val_idx], all_labels[val_idx], transform=val_transform)
-        
-        dataloaders = {
-            'train': DataLoader(train_ds, batch_size=16, shuffle=True, num_workers=0),
-            'val': DataLoader(val_ds, batch_size=16, shuffle=False, num_workers=0)
-        }
-        
-        # SqueezeNet is EXTREMELY small and fast, MobileNetV2 is also small
-        model = models.mobilenet_v2(pretrained=True)
-        model.classifier[1] = nn.Linear(model.last_channel, 2)
-        
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(model.parameters(), lr=1e-4)
-        
-        model, best_acc = train_model(model, dataloaders, criterion, optimizer, num_epochs=15)
-        print(f"Fold {fold+1} Acc: {best_acc:.4f}")
-        fold_accs.append(best_acc.item())
-        
-        # If we got one good model, let's just save it and break so we don't take too long
-        torch.save(model.state_dict(), "best_model.pth")
-        break
-        
-    print(f"Estimated Accuracy from Fold 1: {fold_accs[0]:.4f}")
+    model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.DEFAULT)
+    model.classifier[1] = nn.Linear(model.last_channel, 2)
+    
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    
+    print("Training model...")
+    model, best_acc = train_model(model, dataloaders, criterion, optimizer, num_epochs=15)
+    
+    print(f"Best Test Accuracy: {best_acc:.4f}")
+    # Save the model to the project root
+    model_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "best_model.pth")
+    torch.save(model.state_dict(), model_path)
+    print(f"Saved to {model_path}")
 
 if __name__ == '__main__':
     main()
