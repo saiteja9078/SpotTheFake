@@ -24,6 +24,7 @@ Thumbs.db
 # Datasets and images
 Dataset/
 test_data/
+test_data*/
 SortedDataset/
 *.heic
 *.HEIC

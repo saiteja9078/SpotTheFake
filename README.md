@@ -2,7 +2,9 @@
 
 This project is a lightweight, high-accuracy machine learning classifier designed to determine whether a given image is a genuine "real photo" or a "photo of a screen" (a re-capture/fraud). 
 
-It achieves **96.00% accuracy** on the evaluation dataset by using a fine-tuned MobileNetV2 architecture.
+It features two distinct approaches:
+1. **Deep Learning (MobileNetV2)**: Achieves **94.74% accuracy** on the evaluation dataset by using a fine-tuned MobileNetV2 architecture on a strictly non-augmented 50/50 dataset split.
+2. **Raw ML + Feature Engineering**: Achieves **96.00% accuracy** (with 0% false positives) using 110 hand-crafted features spanning frequency (FFT), texture (LBP/GLCM), and sharpness domains passed through an ExtraTrees classifier.
 
 ---
 
@@ -59,8 +61,9 @@ python batch_inference.py "path/to/input_folder" "results.csv" "path/to/output_f
 
 ## 📂 Project Structure
 
-- `predict.py`: Core inference script for single images.
+- `predict.py`: Core inference script for single images (uses MobileNetV2 by default).
 - `batch_inference.py`: Utility script for batch processing and CSV logging.
 - `best_model.pth`: The fine-tuned MobileNetV2 PyTorch weights (~13MB).
+- `raw_ml/`: Contains a pure classical ML approach without deep learning (extracting 110 features from images) yielding the highest F1 score. Includes its own `predict.py`, `train.py`, and `results_report.md`.
 - `note.md`: The approach report detailing accuracy, latency, and costs.
 - `research/`: Contains all exploratory scripts (data analysis, classic CV testing, and fine-tuning scripts) used during the development phase.
